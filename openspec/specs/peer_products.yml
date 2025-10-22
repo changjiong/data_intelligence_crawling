@@ -1,0 +1,30 @@
+meta:
+  version: 0.1.0
+  owner: "Jong"
+  created_at: "2025-10-22"
+  tags: ["crawler","data","policy","finance"]
+
+# OpenSpec Draft for: 同业产品模块（光谷科技平台+其他银行）
+
+feature: "peer.products"
+context:
+  sources:
+    - url: "https://www.ggjrdn.com/portal-view/bondfinancing"
+    - note: "配合之前搜集的其他银行科创贷类产品清单（可手工导入 csv）"
+  goal: "汇总产品清单做统计展示；点击进入详情页"
+  fields: ["org","product_name","category","rate_range","limit_range","term_range","apply_link","source_url"]
+
+scenarios:
+  - id: peer_list_and_detail
+    name: "列表与详情"
+    given: ["已采集或导入 ≥ 20 个产品"]
+    when: ["访问 /products 列表"]
+    then:
+      - "可按机构/利率/额度筛选，支持分页"
+      - "点击 /products/<id> 展示原始描述与来源链接"
+
+assertions:
+  schema:
+    required_fields: ["org","product_name","category","source_url"]
+  display:
+    filters: ["org","category","rate_range"]

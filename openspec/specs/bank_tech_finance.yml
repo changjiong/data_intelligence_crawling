@@ -1,0 +1,33 @@
+meta:
+  version: 0.1.0
+  owner: "Jong"
+  created_at: "2025-10-22"
+  tags: ["crawler","data","policy","finance"]
+
+# OpenSpec Draft for: 银行科技金融（业绩与增长）
+
+feature: "bank.tech_finance"
+context:
+  sources:
+    - url: "https://www.thepaper.cn/newsDetail_forward_31569275"
+    - url: "https://news.qq.com/rain/a/20240522A020U200"
+    - url: "https://news.qq.com/rain/a/20250609A02UDF00"
+  goal: "提炼上市银行科创金融业绩与增长（覆盖 2023 与 2024 年）"
+  fields: ["bank","metric","year","value","unit","evidence_url","paragraph_snippet"]
+
+scenarios:
+  - id: bank_metrics_extract
+    name: "结构化指标提取"
+    given: ["原文可访问"]
+    when: ["运行 extractor.bank_metrics()"]
+    then:
+      - "包含 2023 与 2024 两年数据"
+      - "覆盖：贷款余额、客户数、投贷联动、同比/环比增长等（若可得）"
+      - "每条记录附 evidence_url 与 40~200 字的证据片段"
+
+assertions:
+  schema:
+    required_fields: ["bank","metric","year","value","unit","evidence_url"]
+  quality:
+    min_years: [2023, 2024]
+    min_records: 10

@@ -1,0 +1,45 @@
+meta:
+  version: 0.1.0
+  owner: "Jong"
+  created_at: "2025-10-22"
+  tags: ["crawler","data","policy","finance"]
+
+# OpenSpec Draft for: 政策模块-国家省市政策
+
+feature: "policies.npc"
+context:
+  sources:
+    - url: "http://www.zxkc.org.cn/index.php?c=category&id=2"
+    - url: "https://www.ggjrdn.com/portal-view/enterprisesPolicies"
+  goal: "全部采集，并按国家/省/市分类展示，支持关键词检索与时间过滤"
+  storage: ["sqlite","csv","parquet"]
+  update_strategy: "增量抓取 + 去重"
+
+scenarios:
+  - id: npc_full_fetch
+    name: "首次全量采集"
+    given: ["站点可访问"]
+    when: ["运行 crawler.policies_npc(full=True)"]
+    then:
+      - "返回 >= 100 条记录（阈值可调）"
+      - "每条记录包含: title, region_level, source_url, publish_date"
+      - "region_level ∈ {national, provincial, municipal}"
+
+  - id: npc_incremental
+    name: "增量采集（按日期）"
+    given: ["存在历史数据"]
+    when: ["运行 crawler.policies_npc(since=YYYY-MM-DD)"]
+    then:
+      - "仅新增记录被写入"
+      - "无重复主键（title+publish_date+site）"
+
+assertions:
+  schema:
+    required_fields: ["id","title","region_level","publish_date","source_url","site"]
+    field_types:
+      publish_date: "date"
+  quality:
+    max_duplicate_rate: 0.01
+    max_empty_title_rate: 0.0
+  sampling_checks:
+    - "任抽 20 条记录的 source_url 可访问（200）"

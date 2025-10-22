@@ -1,0 +1,28 @@
+[project]
+name = "data-intelligence-crawling"
+version = "0.1.0"
+description = "Web data collection with OpenSpec-driven development"
+readme = "AGENTS.md"
+requires-python = ">=3.11,<3.13"
+authors = [{ name = "Jong" }]
+
+dependencies = [
+  "beautifulsoup4",
+  "lxml",
+  "httpx",
+  "tenacity",
+  "pydantic",
+  "python-dotenv",
+  "rich",
+  "pandas",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.uv]
+cache-project = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

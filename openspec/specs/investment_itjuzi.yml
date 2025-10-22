@@ -1,0 +1,32 @@
+meta:
+  version: 0.1.0
+  owner: "Jong"
+  created_at: "2025-10-22"
+  tags: ["crawler","data","policy","finance"]
+
+# OpenSpec Draft for: 投融资数据展示（IT桔子）
+
+feature: "investment.itjuzi"
+context:
+  sources:
+    - url: "https://www.itjuzi.com/"
+    - auth: "如需登录/订阅，请在 .env 配置 ITJUZI_COOKIE；或先人工导出 csv"
+  goal: "抓取最近一年的创投事件；首页展示最近 10 条，点击更多查看全量"
+  fields: ["date","startup","round","amount","currency","investors","industry","region","source_url"]
+
+scenarios:
+  - id: itjuzi_recent_year
+    name: "最近一年创投事件"
+    given: ["已获取（登录或导出）事件数据"]
+    when: ["运行 crawler.itjuzi(since=today-365d)"]
+    then:
+      - "记录数 ≥ 300（示例阈值），日期分布覆盖最近一年"
+      - "首页显示最近 10 条，/investments?page=2 查看更多"
+
+assertions:
+  schema:
+    required_fields: ["date","startup","round","amount?","investors?","source_url"]
+  freshness:
+    max_age_days: 365
+  ui:
+    homepage_count: 10

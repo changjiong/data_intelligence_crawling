@@ -1,0 +1,33 @@
+meta:
+  version: 0.1.0
+  owner: "Jong"
+  created_at: "2025-10-22"
+  tags: ["crawler","data","policy","finance"]
+
+# OpenSpec Draft for: 政策模块-监管政策（金融）
+
+feature: "policies.finreg"
+context:
+  sources:
+    - url: "https://mp.weixin.qq.com/s/onF070OpmvDlzSf-FIctqA"
+  goal: "采集并展示监管政策原文（pdf/网页）；正文中抽取关键词并生成锚点链接"
+  display:
+    render: ["pdf_embed","html_view"]
+    link_strategy: "keywords → anchors"
+
+scenarios:
+  - id: finreg_fetch_pdf_or_html
+    name: "抓取与渲染"
+    given: ["链接有效"]
+    when: ["运行 crawler.finreg(url=...)"]
+    then:
+      - "正文文本 >= 500 字"
+      - "若包含 PDF 链接，保存并能内嵌展示"
+      - "生成 ≥ 5 个关键词锚点链接"
+
+assertions:
+  schema:
+    required_fields: ["id","title","keywords","content_html","pdf_path?","source_url"]
+  content:
+    min_keyword_count: 5
+    min_char_count: 500
