@@ -8,21 +8,31 @@ authors = [{ name = "Jong" }]
 
 dependencies = [
   "beautifulsoup4",
-  "lxml",
+  "google-api-python-client",
+  "google-auth",
+  "google-auth-httplib2",
+  "google-auth-oauthlib",
   "httpx",
-  "tenacity",
+  "lxml",
+  "pandas",
   "pydantic",
   "python-dotenv",
   "rich",
-  "pandas",
+  "tenacity",
 ]
 
-[project.optional-dependencies]
-dev = ["pytest"]
-
 [tool.uv]
-cache-project = true
+index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0.0"]
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[dependency-groups]
+dev = [
+    "pyyaml>=6.0.3",
+]
