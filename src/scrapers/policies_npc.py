@@ -19,6 +19,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Crawl ZXKC policies and export to Google Docs.")
     parser.add_argument("--since", type=_parse_date, help="仅抓取该日期（含）之后的政策，格式 YYYY-MM-DD")
     parser.add_argument("--max-pages", type=int, default=None, help="最多抓取前 N 页")
+    parser.add_argument("--before", type=_parse_date, help="仅抓取该日期（含）之前的政策，格式 YYYY-MM-DD")
+    parser.add_argument("--start-page", type=int, default=1, help="从第几页开始抓取（默认 1）")
     parser.add_argument("--limit", type=int, default=None, help="限制抓取记录数量")
     parser.add_argument("--download-dir", default="data/policies_npc/attachments", help="附件保存目录")
     parser.add_argument("--skip-google-docs", action="store_true", help="跳过 Google Docs 导出")
@@ -33,12 +35,14 @@ def _parse_date(value: str) -> date:
 
 def run(
     since: Optional[date] = None,
+    before: Optional[date] = None,
     max_pages: Optional[int] = None,
     limit: Optional[int] = None,
     download_dir: str | Path = "data/policies_npc/attachments",
     skip_google_docs: bool = False,
     dry_run: bool = False,
     exporter: GoogleDocsExporter | None = None,
+    start_page: int = 1,
 ) -> None:
     load_dotenv()
     repo = PolicyRepository()
@@ -50,11 +54,17 @@ def run(
     if not docs_exporter and not skip_google_docs and not dry_run:
         docs_exporter = GoogleDocsExporter()
 
-    new_policies = []
     discovered = 0
+    saved = 0
 
     with ZxkcPoliciesClient() as client:
-        for policy in client.crawl(since=since, max_pages=max_pages, limit=limit):
+        for policy in client.crawl(
+            since=since,
+            before=before,
+            max_pages=max_pages,
+            limit=limit,
+            start_page=start_page,
+        ):
             key = _policy_key(policy.title, policy.publish_date, policy.site)
             if key in existing_index:
                 logger.debug("Skip existing policy: %s", policy.title)
@@ -67,16 +77,15 @@ def run(
             policy.attachments = downloaded
             if docs_exporter:
                 docs_exporter.export(policy)
-            new_policies.append(policy)
-            existing_index[key] = policy
+            repo.upsert_one(existing_index, policy)
+            saved += 1
 
     if dry_run:
         logger.info("Dry run完成，发现 %d 条潜在新政策。", discovered)
         return
 
-    if new_policies:
-        repo.upsert_many(new_policies)
-        logger.info("入库 %d 条新政策。", len(new_policies))
+    if saved:
+        logger.info("入库 %d 条新政策。", saved)
     else:
         logger.info("没有发现新的政策记录。")
 
@@ -91,6 +100,8 @@ def main() -> None:
     run(
         since=args.since,
         max_pages=args.max_pages,
+        before=args.before,
+        start_page=args.start_page,
         limit=args.limit,
         download_dir=args.download_dir,
         skip_google_docs=args.skip_google_docs,

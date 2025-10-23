@@ -42,6 +42,13 @@ class PolicyRepository:
         self._write(index)
         return index
 
+    def upsert_one(self, index: Dict[Tuple[str, str | None, str | None], Policy], policy: Policy) -> Tuple[str, str | None, str | None]:
+        publish_date = policy.publish_date.isoformat() if policy.publish_date else None
+        key = self._make_key(policy.title, publish_date, policy.site)
+        index[key] = policy
+        self._write(index)
+        return key
+
     def contains(self, title: str, publish_date: str | None, site: str | None = None) -> bool:
         key = self._make_key(title, publish_date, site)
         return key in self.load_index()

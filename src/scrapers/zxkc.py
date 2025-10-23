@@ -8,6 +8,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Iterable, List, Optional
 from urllib.parse import parse_qs, urljoin, urlparse
+import time
 
 import httpx
 from bs4 import BeautifulSoup
@@ -46,6 +47,7 @@ class ZxkcPoliciesClient:
     def __init__(self, base_url: str = BASE_URL, timeout: float = 20.0) -> None:
         self.base_url = base_url.rstrip("/")
         self.client = httpx.Client(base_url=self.base_url, headers=HEADERS, timeout=timeout, follow_redirects=True)
+        self._attachment_backoff = [1, 3, 5]
 
     def close(self) -> None:
         self.client.close()
@@ -73,14 +75,17 @@ class ZxkcPoliciesClient:
     def crawl(
         self,
         since: Optional[date] = None,
+        before: Optional[date] = None,
         max_pages: Optional[int] = None,
         limit: Optional[int] = None,
+        start_page: int = 1,
     ) -> Iterable[Policy]:
         collected = 0
-        page = 1
+        page = max(start_page, 1)
         stop = False
+        pages_processed = 0
         while True:
-            if max_pages and page > max_pages:
+            if max_pages and pages_processed >= max_pages:
                 break
             html = self.fetch_list_page(page)
             items = self.parse_list(html)
@@ -90,7 +95,13 @@ class ZxkcPoliciesClient:
                 if since and item.publish_date and item.publish_date < since:
                     stop = True
                     continue
-                detail_html = self.fetch_detail_page(item.url)
+                if before and item.publish_date and item.publish_date > before:
+                    continue
+                try:
+                    detail_html = self.fetch_detail_page(item.url)
+                except httpx.HTTPError as exc:
+                    logger.error("详情页请求失败，跳过 %s (%s)", item.url, exc)
+                    continue
                 detail = self.parse_detail(detail_html, fallback_title=item.title, fallback_date=item.publish_date, url=item.url)
                 policy = Policy(
                     id=f"zxkc-{item.article_id}",
@@ -110,6 +121,7 @@ class ZxkcPoliciesClient:
             if stop:
                 break
             page += 1
+            pages_processed += 1
 
     def parse_list(self, html: str) -> List[ListItem]:
         soup = BeautifulSoup(html, "lxml")
@@ -186,14 +198,39 @@ class ZxkcPoliciesClient:
         if target.exists():
             logger.debug("Attachment already exists, skipping download: %s", target)
             attachment.mime_type = attachment.mime_type or mimetypes.guess_type(target.name)[0]
-        else:
-            with self.client.stream("GET", attachment.url) as response:
-                response.raise_for_status()
-                with target.open("wb") as fh:
-                    for chunk in response.iter_bytes():
-                        fh.write(chunk)
-                attachment.mime_type = response.headers.get("content-type")
-        attachment.local_path = str(target)
+            attachment.local_path = str(target)
+            return attachment
+
+        for attempt, wait in enumerate(self._attachment_backoff, start=1):
+            try:
+                with self.client.stream("GET", attachment.url) as response:
+                    try:
+                        response.raise_for_status()
+                    except httpx.HTTPStatusError as exc:
+                        status = exc.response.status_code
+                        if status == 404:
+                            logger.warning("附件不存在 (404)，跳过：%s", attachment.url)
+                            return attachment
+                        if status in {429, 500, 502, 503, 504} and attempt < len(self._attachment_backoff):
+                            logger.warning("附件下载遇到 %s，%s 秒后重试：%s", status, wait, attachment.url)
+                            time.sleep(wait)
+                            continue
+                        logger.error("附件下载失败 (HTTP %s)：%s", status, attachment.url)
+                        return attachment
+                    with target.open("wb") as fh:
+                        for chunk in response.iter_bytes():
+                            fh.write(chunk)
+                    attachment.mime_type = response.headers.get("content-type")
+                    attachment.local_path = str(target)
+                    return attachment
+            except httpx.HTTPError as exc:
+                if attempt < len(self._attachment_backoff):
+                    logger.warning("附件下载异常 (%s)，%s 秒后重试：%s", exc, wait, attachment.url)
+                    time.sleep(wait)
+                    continue
+                logger.error("附件下载多次失败，放弃：%s (%s)", attachment.url, exc)
+                return attachment
+
         return attachment
 
     @staticmethod

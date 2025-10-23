@@ -19,6 +19,13 @@ class DummyRepo:
         self.saved.extend(policies)
         return {}
 
+    def upsert_one(self, index, policy):
+        key = (policy.title.strip(), policy.publish_date.isoformat() if policy.publish_date else None, policy.site or "zxkc")
+        self.index = dict(index)
+        self.index[key] = policy
+        self.saved.append(policy)
+        return key
+
 
 class DummyClient:
     def __init__(self, policies):
